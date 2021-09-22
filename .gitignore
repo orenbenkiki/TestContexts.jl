@@ -1,0 +1,10 @@
+deps/.coverage
+deps/.formatted
+deps/.untested
+docs/build
+*.jl.cov
+*.jl.*.cov
+junk*
+.*.swo
+.*.swp
+tracefile.info
