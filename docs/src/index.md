@@ -40,6 +40,7 @@ Invoking `test_patterns` allows specifying a list of patterns of full test names
 not empty, only tests which match at least one of the patterns will actually execute:
 
 ```@docs
+TestContexts.test_name
 TestContexts.test_patterns
 ```
 
@@ -52,20 +53,20 @@ cases starts with a fresh copy of the database, which is deleted when the test c
 test_set("db", :db => PrivateValue(create_db_on_disk, remove_db_from_disk)) do
     test_case("filled") do
         fill_db(tc.db)
-        @test ...
+        @test !isempty(query_db(tc.db))
     end
     test_case("empty") do
-        @test ...
+        @test isempty(query_db(tc.db))
     end
 end
 ```
 
-If we invoke:
+If we first invoke:
 
 ```
 test_patterns(['.*/filled'])
 ```
 
 Then running the tests will only execute the `db/filled` test case. A common usage is to add
-`test_patterns(Base.ARGS)` as the 1st executable line of `runtests.jl`, which allows specifying
-which tests to run on the command line.
+`test_patterns(Base.ARGS)` early in `runtests.jl`, which allows specifying which tests to run on the
+command line.

@@ -22,6 +22,7 @@ export PrivateValue
 export SharedValue
 export tc
 export test_case
+export test_name
 export test_patterns
 export PropertyValue
 export test_set
@@ -73,7 +74,7 @@ function getproperty(context::TestContext, property::Symbol)::Any
     values = getfield(context, :_values)
     if values == nothing
         error(
-            "Trying to access property $(property) of text context $(join(context._names, "/")) outside a test case",
+            "Trying to access property :$(property) outside test case in test context $(join(context._names, "/"))",
         )
     end
 
@@ -86,7 +87,7 @@ function getproperty(context::TestContext, property::Symbol)::Any
     if ismissing(property_value)
         throw(
             KeyError(
-                "Test context $(join(context._names, "/")) has no property named :$(property)",
+                "Test context $(join(context._names, "/")) has no property :$(property)",
             ),
         )
     end
@@ -103,15 +104,29 @@ function getproperty(context::TestContext, property::Symbol)::Any
 end
 
 """
-The global context for running tests.
+The global context for running tests. This is mainly used to access the test environment; by
+accessing `tc.foo` one obtains the value of some `foo` property which was previously set up by a
+`test_set` or by the `test_case` itself.
 """
 tc = TestContext()
 
 """
+    test_name()::AbstractString
+
+Return the full name of the current test context. This is a `/`-separated path containing the names
+of all the nested `test_set` and `test_case` calls. This full name is automatically logged using
+`@debug` at the start of each test case. It is also matched against any `test_patterns` to allow
+executing only a specific subset of the tests.
+"""
+function test_name()::AbstractString
+    return join(tc._names, "/")
+end
+
+"""
     test_patterns(patterns::Vector{Union{String,Regex}})::Nothing
 
-Specify patterns for the tests to run. Only tests whose full name matches one of the patterns will
-be run. If the vector is empty, all tests will be run.
+Specify patterns for the tests to run. Only tests whose full `test_name` matches one of the patterns
+will be run. If the vector is empty, all tests will be run.
 """
 function test_patterns(patterns::Vector)::Nothing
     tc._patterns = [pattern isa Regex ? pattern : Regex(pattern) for pattern in patterns]
@@ -127,8 +142,8 @@ The optional `data` must a series of zero or more entries, each in the format `p
 where `property` is a symbol and `value` is a `PropertyValue`.
 
 Nesting test sets is allowed. This is a common pattern for incrementally setting up a test
-environment for the actual test cases. In BDD terminology, a test set is functionally equivalent to
-the "given" or "when" clauses.
+environment for the actual test cases. In BDD terminology, a test set is similar to the "given" or
+"when" clauses.
 
 The property values are not accessible (yet). See `test_case` for actually accessing the data.
 """
@@ -138,9 +153,7 @@ function test_set(body::Function, name::String, data...)::Nothing
     data = Dict{Symbol,PropertyValue}(data...)
     for property in keys(data)
         if property in keys(tc._data)
-            error(
-                "Trying to override property $(property) of text context $(join(context._names, "/"))",
-            )
+            error("Trying to override property $(property) of test context $(test_name())")
         end
     end
 
@@ -164,22 +177,22 @@ end
     test_case(body::Function, name::String, data...)
 
 Similar to `test_set` but is used to wrap actual `@test` code. Allows access to any data previously
-setup by the containing `test_set` calls, if any, is available during the test by accessing
-`tc.property`. Mutable data (with a `make` function) is re-created (lazily) for each test case. If a
-`finalize` function was specified, it is invoked to properly dispose of the data at the end of the
-test case.
+setup by the containing `test_set` calls, if any, or in the `test_case` call itself. The properties
+data is available during the test by accessing `tc.property`. A separate instance is created
+(lazily) for any private data for each test case. If a `finalize` function was specified, it is
+invoked to properly dispose of the data at the end of the test case.
 
 Nesting a test set or a test case inside a test case is forbidden. That is, a test case is expected
 to actually test some specific scenario which was set up by the containing test sets. In BDD
-terminology, a test case is functionally equivalent to the "then" clause.
+terminology, a test case is similar to the "then" clause.
 
-The full name of the test case is the `/`-separated path containing all the names of the containing
-`test_set` calls plus the final test case `name`. If `test_patterns` were specified, and the full
-name does not match any of these patterns, then the test case is silently ignored.
+If any `test_patterns` were specified, and the full `test_name` does not match any of these
+patterns, then the test case is silently ignored. Otherwise, the test name is logged using `@debug`
+before the test case code is executed.
 """
 function test_case(body::Function, name::String, data...)::Nothing
     test_set(name, data...) do
-        full_name = join(tc._names, "/")
+        full_name = test_name()
         patterns = tc._patterns
         if !isempty(patterns)
             include = false

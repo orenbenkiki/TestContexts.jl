@@ -3,19 +3,23 @@ using Test
 
 test_set("context") do
     @test_throws ErrorException tc.foo
+    @test test_name() == "context"
 
     test_set("patterns") do
+        @test test_name() == "context/patterns"
         test_patterns([".*/match"])
         try
 
             did_run_match = false
             test_case("match") do
+                @test test_name() == "context/patterns/match"
                 did_run_match = true
             end
             @test did_run_match
 
             did_run_mismatch = false
             test_case("mismatch") do
+                @test test_name() == "context/patterns/mismatch"  # untested
                 did_run_mismatch = true  # untested
             end
             @test !did_run_mismatch
